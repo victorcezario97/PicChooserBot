@@ -1,1 +1,1 @@
-web: bundle exec ruby botname.rb
+web: bundle exec ruby PicChooser.rb
