@@ -10,6 +10,10 @@ url = "https://api.telegram.org/bot#{token}/sendMessage?chat_id=#{chat_id}&text=
 @done_keyboard = Telegram::Bot::Types::ReplyKeyboardMarkup.new(keyboard: [%w(/done)], one_time_keyboard: true)
 @saved = Array.new
 
+def oneWordKeyboard(str)
+  return Telegram::Bot::Types::ReplyKeyboardMarkup.new(keyboard: [str], one_time_keyboard: true)
+end
+
 def getInlineKeyboard(n, extra)
   kb = [n]
 
@@ -20,19 +24,66 @@ def getInlineKeyboard(n, extra)
   return Telegram::Bot::Types::InlineKeyboardMarkup.new(inline_keyboard: kb)
 end
 
-def handleMedia(msg, bot, type)
+def handleMedia(msg, bot)
 
   media = OpenStruct.new
-  media.type = type
-  if type == "photo"
+
+  if msg.photo.length > 0
+    media.type = "photo"
     media.id = msg.photo.first.file_id
-  else
-#    media.id = msg.
+  elsif msg.voice != nil
+    media.type = "voice"
+    media.id = msg.voice.file_id
+  elsif msg.video_note != nil
+    media.type = "video_note"
+    media.id = msg.video_note.file_id
+  elsif msg.video != nil
+    media.type = "video"
+    media.id = msg.video.file_id
+  elsif msg.sticker != nil
+    media.type = "sticker"
+    media.id = msg.sticker.file_id
+  elsif msg.audio != nil
+    media.type = "audio"
+    media.id = msg.audio.file_id
+  elsif msg.animation != nil
+    media.type = "animation"
+    media.id = msg.animation.file_id
+  else return nil
   end
+
   media.caption = msg.caption
 
-  bot.api.send_message(chat_id: msg.chat.id, text: "Photo received", reply_markup: @done_keyboard)
-  return photo
+  bot.api.send_message(chat_id: msg.chat.id, text: "#{media.type.capitalize()} received", reply_markup: @done_keyboard)
+  return media
+end
+
+def sendEverything(id, bot)
+  @saved.each do |media|
+    case media.type
+    when "photo"
+      bot.api.send_photo(chat_id: id, photo: media.id, caption: media.caption)
+
+    when "voice"
+      bot.api.send_voice(chat_id: id, voice: media.id, caption: media.caption)
+
+    when "video_note"
+      bot.api.send_video_note(chat_id: id, video_note: media.id)
+
+    when "video"
+      bot.api.send_video(chat_id: id, video: media.id, caption: media.caption)
+
+    when "sticker"
+      bot.api.send_sticker(chat_id: id, sticker: media.id)
+
+    when "audio"
+      bot.api.send_audio(chat_id: id, audio: media.id, caption: media.caption)
+
+    when "animation"
+      bot.api.send_animation(chat_id: id, animation: media.id, caption: media.caption)
+
+    end
+  end
 end
 
 def handleMessage(message, bot)
@@ -45,10 +96,15 @@ def handleMessage(message, bot)
   when '/new'
     bot.api.send_message(chat_id: message.chat.id, text: "Send me what you want to save.", reply_markup: @done_keyboard)
     bot.listen do |msg|
-      if msg.text == "/done"
-        break
+
+      media = handleMedia(msg, bot)
+      if media != nil
+        @saved.push(media)
+      else
+        if msg.text == "/done"
+          break
+        end
       end
-      @saved.push(handlePhoto(msg, bot))
     end
     bot.api.send_message(chat_id: message.chat.id, text: "Messages received.", reply_markup: @keyboard)
 
@@ -59,10 +115,34 @@ def handleMessage(message, bot)
       bot.api.send_message(chat_id: message.chat.id, text: "Choose a number(1 - #{@saved.length}):", reply_markup: getInlineKeyboard(@saved.length, ""))
       bot.listen do |op|
         bot.api.send_message(chat_id: message.chat.id, text: @saved.fetch(op.text.to_i-1, "That number doesn't work..."), reply_markup: @keyboard)
-        #@saved.delete_at(op.text.to_i-1)
         break
       end
     end
+
+  when '/remove'
+    bot.api.send_message(chat_id: message.chat.id, text: "Choose a number(1 - #{@saved.length}) to remove:", reply_markup: getInlineKeyboard(@saved.length, ""))
+    bot.listen do |msg|
+      case msg
+      when Telegram::Bot::Types::CallbackQuery
+        if msg.data.to_i >= 0 && msg.data.to_i <= @saved.length
+          @saved.delete_at(msg.data.to_i)
+          bot.api.send_message(chat_id: message.chat.id, text: "Message removed")
+          break
+        else
+          bot.api.send_message(chat_id: message.chat.id, text: "That number doesn't work...")
+        end
+
+      when Telegram::Bot::Types::Message
+        if msg.text == "/cancel"
+          bot.api.send_message(chat_id: message.chat.id, text: "Cancelling...")
+          break
+        end
+      end
+    end
+
+
+  when "/all"
+    sendEverything(message.chat.id, bot)
 
   when '/send'
     puts @saved.length
@@ -81,11 +161,11 @@ def sendAll(bot)
 
   bot.api.send_message(chat_id: '@PicChoosing', text: "Choose a number(1 - #{@saved.length}):", reply_markup: getInlineKeyboard(@saved.length, ""))
   bot.listen do |msg|
+
     case msg
+
     when Telegram::Bot::Types::CallbackQuery
-      #bot.api.send_message(chat_id: message.chat.id, text:"Someone sent this: " + msg.text)
       if msg.data.to_i >= 0 && msg.data.to_i <= @saved.length
-        #HTTParty.get(url + @saved.at(msg.text.to_i-1).text)
         bot.api.send_photo(chat_id: '@PicChoosing', photo: @saved[msg.data.to_i].id, caption: @saved[msg.data.to_i].caption)
         break
       else
@@ -94,6 +174,7 @@ def sendAll(bot)
     end
   end
 
+  @saved.clear
 end
 
 file = File.open('chat_ids', 'r')
@@ -106,18 +187,13 @@ puts chat2
 
 Telegram::Bot::Client.run(token) do |bot|
 
-  bot.api.send_message(chat_id: chat1, text: "aThat number doesn't work...")
-  bot.api.send_message(chat_id: chat2, text: "bThat number doesn't work...")
-
   bot.listen do |message|
-    puts message.chat.id
-
     case message
     when Telegram::Bot::Types::Message
       handleMessage(message, bot)
 
     when Telegram::Bot::Types::PhotoSize
-      handlePhoto(message, bot)
+      handleMedia(message, bot, "photo")
 
 
     end
