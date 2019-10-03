@@ -6,8 +6,8 @@ token = '953990220:AAFfbdRj1pBzMQB84fRCIASuR2DTgr0axYQ'
 @keyboard = Telegram::Bot::Types::ReplyKeyboardMarkup.new(keyboard: [%w(/new /send), %w(/get /all), %w(/remove /clear), %w(/help /stop)], one_time_keyboard: false)
 @done_keyboard = Telegram::Bot::Types::ReplyKeyboardMarkup.new(keyboard: [%w(/done)], one_time_keyboard: true)
 @saved = Array.new
-@active_user
-@other_user
+@active_user = OpenStruct.new
+@other_user = OpenStruct.new
 @running = false
 
 def oneWordKeyboard(str)
@@ -97,21 +97,21 @@ end
 
 def sendQuery(bot)
 
-  bot.api.send_message(chat_id: @other_user, text: "Choose a number:", reply_markup: getInlineKeyboard(@saved.length, nil))
-  bot.api.send_message(chat_id: @active_user, text: "Waiting for the response...", reply_markup: @keyboard)
+  bot.api.send_message(chat_id: @other_user.id, text: "Choose a number:", reply_markup: getInlineKeyboard(@saved.length, nil))
+  bot.api.send_message(chat_id: @active_user.id, text: "Waiting for the response...", reply_markup: @keyboard)
   bot.listen do |msg|
 
     case msg
 
     when Telegram::Bot::Types::CallbackQuery
       if msg.data.to_i >= 0 && msg.data.to_i <= @saved.length
-        sendMedia(@other_user, @saved[msg.data.to_i], bot)
+        sendMedia(@other_user.id, @saved[msg.data.to_i], bot)
         @saved.clear
         bot.api.answerCallbackQuery(callback_query_id: msg.id)
-        bot.api.send_message(chat_id: @active_user, text: "An option has been picked(#{msg.data.to_i}). Clearing the message pool.")
+        bot.api.send_message(chat_id: @active_user.id, text: "An option has been picked(#{msg.data.to_i}). Clearing the message pool.")
         return
       else
-        bot.api.send_message(chat_id: @other_user, text: "That number doesn't work...")
+        bot.api.send_message(chat_id: @other_user.id, text: "That number doesn't work...")
         bot.api.answerCallbackQuery(callback_query_id: msg.id)
       end
     end
@@ -120,7 +120,7 @@ end
 
 def sendEverything(id, bot)
   @saved.each do |media|
-    sendMedia(@active_user, media, bot)
+    sendMedia(@active_user.id, media, bot)
   end
 end
 
@@ -139,7 +139,7 @@ def sendHelp(id, bot)
 end
 
 def remove(bot)
-  bot.api.send_message(chat_id: @active_user, text: "Choose a number(1 - #{@saved.length}) to remove:", reply_markup: getInlineKeyboard(@saved.length, "Cancel"))
+  bot.api.send_message(chat_id: @active_user.id, text: "Choose a number to remove:", reply_markup: getInlineKeyboard(@saved.length, "Cancel"))
   bot.listen do |msg|
     op = msg.data.to_i
 
@@ -147,22 +147,22 @@ def remove(bot)
     when Telegram::Bot::Types::CallbackQuery
       if op >= 0 && op < @saved.length
         @saved.delete_at(msg.data.to_i)
-        bot.api.send_message(chat_id: @active_user, text: "Message removed.")
+        bot.api.send_message(chat_id: @active_user.id, text: "Message removed.")
         bot.api.answerCallbackQuery(callback_query_id: msg.id)
         break
       elsif op == -1
-        bot.api.send_message(chat_id: @active_user, text: "Operation cancelled.")
+        bot.api.send_message(chat_id: @active_user.id, text: "Operation cancelled.")
         bot.api.answerCallbackQuery(callback_query_id: msg.id)
         break
       else
-        bot.api.send_message(chat_id: @active_user, text: "That number doesn't work...")
+        bot.api.send_message(chat_id: @active_user.id, text: "That number doesn't work...")
         bot.api.answerCallbackQuery(callback_query_id: msg.id)
       end
 
 
     when Telegram::Bot::Types::Message
       if msg.text == "/cancel"
-        bot.api.send_message(chat_id: @active_user, text: "Cancelling...")
+        bot.api.send_message(chat_id: @active_user.id, text: "Cancelling...")
         break
       end
     end
@@ -176,16 +176,16 @@ def clearMessages(bot)
 
   kb = Telegram::Bot::Types::InlineKeyboardMarkup.new(inline_keyboard: buttons)
 
-  bot.api.send_message(chat_id: @active_user, text:"Are you sure you want to delete all messages in the pool (#{@saved.length}) ?", reply_markup: kb)
+  bot.api.send_message(chat_id: @active_user.id, text:"Are you sure you want to delete all messages in the pool (#{@saved.length}) ?", reply_markup: kb)
 
   bot.listen do |op|
     case op
     when Telegram::Bot::Types::CallbackQuery
       if op.data.to_i == 0
         @saved.clear
-        bot.api.send_message(chat_id: @active_user, text:"Message pool deleted.")
+        bot.api.send_message(chat_id: @active_user.id, text:"Message pool deleted.")
       else
-        bot.api.send_message(chat_id: @active_user, text:"Operation cancelled.")
+        bot.api.send_message(chat_id: @active_user.id, text:"Operation cancelled.")
       end
       bot.api.answerCallbackQuery(callback_query_id: op.id)
       break
@@ -201,7 +201,7 @@ def handleMessage(message, bot)
     bot.api.send_message(chat_id: message.chat.id, text: "Hello, #{message.from.first_name}, please choose an option.", reply_markup: @keyboard)
 
   when '/new'
-    bot.api.send_message(chat_id: @active_user, text: "Send me what you want to save.", reply_markup: @done_keyboard)
+    bot.api.send_message(chat_id: @active_user.id, text: "Send me what you want to save and then send /done.", reply_markup: @done_keyboard)
     bot.listen do |msg|
       media = handleMedia(msg, bot)
       if media != nil
@@ -212,19 +212,19 @@ def handleMessage(message, bot)
         end
       end
     end
-    bot.api.send_message(chat_id: @active_user, text: "Messages received.", reply_markup: @keyboard)
+    bot.api.send_message(chat_id: @active_user.id, text: "Messages received.", reply_markup: @keyboard)
 
   when '/get'
     if @saved.empty?
-      bot.api.send_message(chat_id: @active_user, text: "Sorry, I have nothing to send. :(", reply_markup: @keyboard)
+      bot.api.send_message(chat_id: @active_user.id, text: "Sorry, I have nothing to send. :(", reply_markup: @keyboard)
     else
-      bot.api.send_message(chat_id: @active_user, text: "Choose a number:", reply_markup: getInlineKeyboard(@saved.length, nil))
+      bot.api.send_message(chat_id: @active_user.id, text: "Choose a number:", reply_markup: getInlineKeyboard(@saved.length, nil))
       bot.listen do |op|
         case op
         when Telegram::Bot::Types::CallbackQuery
           i = op.data.to_i
           if i >= 0 && i < @saved.length
-            sendMedia(@active_user, @saved[i], bot)
+            sendMedia(@active_user.id, @saved[i], bot)
           end
           bot.api.answerCallbackQuery(callback_query_id: op.id)
           break
@@ -235,21 +235,21 @@ def handleMessage(message, bot)
 
   when '/remove'
     if @saved.empty?
-      bot.api.send_message(chat_id: @active_user, text: "There's nothing to remove.")
+      bot.api.send_message(chat_id: @active_user.id, text: "There's nothing to remove.")
     else
       remove(bot)
     end
 
   when "/all"
     if @saved.empty?
-      bot.api.send_message(chat_id: @active_user, text:"You haven't sent me anything.")
+      bot.api.send_message(chat_id: @active_user.id, text:"You haven't sent me anything.")
     else
-      sendEverything(@active_user, bot)
+      sendEverything(@active_user.id, bot)
     end
 
   when '/send'
     if @saved.empty?
-      bot.api.send_message(chat_id: @active_user, text:"You haven't sent me anything.")
+      bot.api.send_message(chat_id: @active_user.id, text:"You haven't sent me anything.")
     else
       sendQuery(bot)
       @running = false
@@ -257,19 +257,22 @@ def handleMessage(message, bot)
     end
 
   when '/help'
-    sendHelp(@active_user, bot)
+    sendHelp(@active_user.id, bot)
 
   when '/clear'
     if @saved.empty?
-      bot.api.send_message(chat_id: @active_user, text:"There's nothing to delete.")
+      bot.api.send_message(chat_id: @active_user.id, text:"There's nothing to delete.")
     else
       clearMessages(bot)
     end
 
   when '/stop'
-    bot.api.send_message(chat_id: @active_user, text: "Bye, #{message.from.first_name}", reply_markup: @keyboard)
+    bot.api.send_message(chat_id: @active_user.id, text: "Bye, #{message.from.first_name}", reply_markup: @keyboard)
     @running = false
     return
+
+  else
+    bot.api.send_message(chat_id: @active_user.id, text: "I'm sorry, I can't understand that. Use /help to see all the available commands.", reply_markup: @keyboard)
   end
 end
 
@@ -282,28 +285,44 @@ Telegram::Bot::Client.run(token) do |bot|
 
   bot.listen do |message|
 
+    if @running
+      if Time.now - time_start > 1800
+        bot.api.send_message(chat_id: @active_user.id, text: "Operation timed out.")
+        @active_user.id = nil
+        @active_user.name = nil
+        @other_user.id = nil
+        @running = false
+        @saved.clear
+      end
+    end
+
+
     case message
 
     when Telegram::Bot::Types::Message
       if !@running
         if message.chat.id.to_s == chat1
-          @active_user = chat1
-          @other_user = chat2
+          @active_user.id = chat1
+          @active_user.name = message.from.first_name
+          @other_user.id = chat2
           @running = true
+          time_start = Time.now
         elsif message.chat.id.to_s == chat2
-          @active_user = chat2
-          @other_user = chat1
+          @active_user.id = chat2
+          @active_user.name = message.from.first_name
+          @other_user.id = chat1
           @running = true
         else
-          @active_user = nil
-          @other_user = nil
+          @active_user.id = nil
+          @active_user.name = nil
+          @other_user.id = nil
         end
       end
 
-      if message.chat.id.to_s == @active_user
+      if message.chat.id.to_s == @active_user.id
         handleMessage(message, bot)
       else
-        bot.api.send_message(chat_id: message.chat.id, text: "Sorry, I'm a bit busy right now.")
+        bot.api.send_message(chat_id: message.chat.id, text: "Sorry, I'm a bit busy right now, I'm helping #{@active_user.name}.")
       end
     end
   end
