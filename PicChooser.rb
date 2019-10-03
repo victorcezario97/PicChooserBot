@@ -8,6 +8,7 @@ token = '953990220:AAFfbdRj1pBzMQB84fRCIASuR2DTgr0axYQ'
 @saved = Array.new
 @active_user
 @other_user
+@running = false
 
 def oneWordKeyboard(str)
   return Telegram::Bot::Types::ReplyKeyboardMarkup.new(keyboard: [str], one_time_keyboard: true)
@@ -105,11 +106,13 @@ def sendQuery(bot)
       if msg.data.to_i >= 0 && msg.data.to_i <= @saved.length
         sendMedia(@other_user, @saved[msg.data.to_i], bot)
         @saved.clear
+        bot.api.answerCallbackQuery(callback_query_id: msg.id)
+        bot.api.send_message(chat_id: @active_user, text: "An option has been picked. Clearing the message pool.")
         return
       else
         bot.api.send_message(chat_id: @other_user, text: "That number doesn't work...")
+        bot.api.answerCallbackQuery(callback_query_id: msg.id)
       end
-      bot.api.answerCallbackQuery(callback_query_id: msg.id)
     end
   end
 end
@@ -122,13 +125,14 @@ end
 
 def sendHelp(id, bot)
   text = "PicChooserBot Usage:
-  /new - Start a new message pool to send to the other chat. The bot will ask for the messages or media after receiving this message. Send '/done' after finishing sending everything you want.
+  /new - Start a new message pool or add to the one that already exists, to send to the other chat. The bot will ask for the messages or media after receiving this message. Send '/done' after finishing sending everything you want.
   /send - Send the choice of picking one of the messages to the other chat. After a message has been picked and sent, the message pool will be erased.
   /get - Get a specific message from the current message pool.
   /all - See all the messages in the current message pool.
   /remove - Remove a specific message from the current message pool.
   /clear - Deletes the whole message pool.
-  /help - Show this text."
+  /help - Show this text.
+  /stop - Stops the bot (necessary so the other person can use it)."
 
   bot.api.send_message(chat_id: id, text: text, reply_markup: @keyboard)
 end
@@ -143,14 +147,17 @@ def remove(bot)
       if op >= 0 && op < @saved.length
         @saved.delete_at(msg.data.to_i)
         bot.api.send_message(chat_id: @active_user, text: "Message removed.")
+        bot.api.answerCallbackQuery(callback_query_id: msg.id)
         break
       elsif op == -1
         bot.api.send_message(chat_id: @active_user, text: "Operation cancelled.")
+        bot.api.answerCallbackQuery(callback_query_id: msg.id)
         break
       else
         bot.api.send_message(chat_id: @active_user, text: "That number doesn't work...")
+        bot.api.answerCallbackQuery(callback_query_id: msg.id)
       end
-      bot.api.answerCallbackQuery(callback_query_id: msg.id)
+
 
     when Telegram::Bot::Types::Message
       if msg.text == "/cancel"
@@ -242,9 +249,11 @@ def handleMessage(message, bot)
 
   when '/send'
     if @saved.empty?
-      sendQuery(bot)
-    else
       bot.api.send_message(chat_id: @active_user, text:"You haven't sent me anything.")
+    else
+      sendQuery(bot)
+      @running = false
+      return
     end
 
   when '/help'
@@ -259,6 +268,8 @@ def handleMessage(message, bot)
 
   when '/stop'
     bot.api.send_message(chat_id: @active_user, text: "Bye, #{message.from.first_name}", reply_markup: @keyboard)
+    @running = false
+    return
   end
 end
 
@@ -273,19 +284,25 @@ Telegram::Bot::Client.run(token) do |bot|
     case message
 
     when Telegram::Bot::Types::Message
-      if message.chat.id.to_s == chat1
-        @active_user = chat1
-        @other_user = chat2
-      elsif message.chat.id.to_s == chat2
-        @active_user = chat2
-        @other_user = chat1
-      else
-        @active_user = nil
-        @other_user = nil
+      if !@running
+        if message.chat.id.to_s == chat1
+          @active_user = chat1
+          @other_user = chat2
+        elsif message.chat.id.to_s == chat2
+          @active_user = chat2
+          @other_user = chat1
+        else
+          @active_user = nil
+          @other_user = nil
+        end
+        @running = true
       end
 
-      handleMessage(message, bot)
-
+      if message.chat.id.to_s == @active_user
+        handleMessage(message, bot)
+      else
+        bot.api.send_message(chat_id: message.chat.id, text: "Sorry, I'm a bit busy right now.")
+      end
     end
   end
 end
