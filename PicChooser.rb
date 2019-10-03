@@ -3,7 +3,7 @@ require 'ostruct'
 
 token = '953990220:AAFfbdRj1pBzMQB84fRCIASuR2DTgr0axYQ'
 
-@keyboard = Telegram::Bot::Types::ReplyKeyboardMarkup.new(keyboard: [%w(/new /send), %w(/get /all), %w(/remove /clear), %w(/help)], one_time_keyboard: false)
+@keyboard = Telegram::Bot::Types::ReplyKeyboardMarkup.new(keyboard: [%w(/new /send), %w(/get /all), %w(/remove /clear), %w(/help /stop)], one_time_keyboard: false)
 @done_keyboard = Telegram::Bot::Types::ReplyKeyboardMarkup.new(keyboard: [%w(/done)], one_time_keyboard: true)
 @saved = Array.new
 @active_user
@@ -98,6 +98,7 @@ end
 def sendQuery(bot)
 
   bot.api.send_message(chat_id: @other_user, text: "Choose a number:", reply_markup: getInlineKeyboard(@saved.length, nil))
+  bot.api.send_message(chat_id: @active_user, text: "Waiting for the response...", reply_markup: @keyboard)
   bot.listen do |msg|
 
     case msg
@@ -107,7 +108,7 @@ def sendQuery(bot)
         sendMedia(@other_user, @saved[msg.data.to_i], bot)
         @saved.clear
         bot.api.answerCallbackQuery(callback_query_id: msg.id)
-        bot.api.send_message(chat_id: @active_user, text: "An option has been picked. Clearing the message pool.")
+        bot.api.send_message(chat_id: @active_user, text: "An option has been picked(#{msg.data.to_i}). Clearing the message pool.")
         return
       else
         bot.api.send_message(chat_id: @other_user, text: "That number doesn't work...")
@@ -197,8 +198,7 @@ def handleMessage(message, bot)
 
   case message.text
   when '/start'
-    puts message.chat.id
-    bot.api.send_message(chat_id: message.chat.id, text: "Hello, #{message.from.first_name}", reply_markup: @keyboard)
+    bot.api.send_message(chat_id: message.chat.id, text: "Hello, #{message.from.first_name}, please choose an option.", reply_markup: @keyboard)
 
   when '/new'
     bot.api.send_message(chat_id: @active_user, text: "Send me what you want to save.", reply_markup: @done_keyboard)
@@ -257,7 +257,7 @@ def handleMessage(message, bot)
     end
 
   when '/help'
-    sendHelp(id, bot)
+    sendHelp(@active_user, bot)
 
   when '/clear'
     if @saved.empty?
@@ -281,6 +281,7 @@ chat2 = content.split("\n")[1]
 Telegram::Bot::Client.run(token) do |bot|
 
   bot.listen do |message|
+
     case message
 
     when Telegram::Bot::Types::Message
