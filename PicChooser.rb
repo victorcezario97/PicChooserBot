@@ -282,9 +282,9 @@ chat1 = content.split("\n")[0]
 chat2 = content.split("\n")[1]
 
 Telegram::Bot::Client.run(token) do |bot|
-
+  time_start = 0
+  
   bot.listen do |message|
-
     if @running
       if Time.now - time_start > 1800
         bot.api.send_message(chat_id: @active_user.id, text: "Operation timed out.")
