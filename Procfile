@@ -1,1 +1,1 @@
-web: bundle exec ruby PicChooser.rb
+app: bundle exec ruby PicChooser.rb

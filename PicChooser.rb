@@ -289,14 +289,15 @@ Telegram::Bot::Client.run(token) do |bot|
         if message.chat.id.to_s == chat1
           @active_user = chat1
           @other_user = chat2
+          @running = true
         elsif message.chat.id.to_s == chat2
           @active_user = chat2
           @other_user = chat1
+          @running = true
         else
           @active_user = nil
           @other_user = nil
         end
-        @running = true
       end
 
       if message.chat.id.to_s == @active_user
