@@ -1,7 +1,7 @@
 require 'telegram/bot'
 require 'ostruct'
 
-token = '953990220:AAFfbdRj1pBzMQB84fRCIASuR2DTgr0axYQ'
+token = 'token'
 
 @keyboard = Telegram::Bot::Types::ReplyKeyboardMarkup.new(keyboard: [%w(/new /send), %w(/get /all), %w(/remove /clear), %w(/help /stop)], one_time_keyboard: false)
 @done_keyboard = Telegram::Bot::Types::ReplyKeyboardMarkup.new(keyboard: [%w(/done)], one_time_keyboard: true)
